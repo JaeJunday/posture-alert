@@ -92,8 +92,8 @@ function visibilityAt(landmarks: PoseLandmark[], index: number): number {
 function tracked(id: string, landmark: PoseLandmark | undefined, source: TrackedPoint["source"]): TrackedPoint {
   return {
     id,
-    x: landmark?.x ?? 0,
-    y: landmark?.y ?? 0,
+    x: landmark?.x ?? Number.NaN,
+    y: landmark?.y ?? Number.NaN,
     z: landmark?.z,
     visibility: landmark?.visibility ?? 0,
     source,

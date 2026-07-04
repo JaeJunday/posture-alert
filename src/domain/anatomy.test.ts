@@ -40,6 +40,48 @@ describe("anatomy", () => {
     expect(anatomy.points.lumbar.y).toBeGreaterThan(anatomy.points.midSpine.y);
   });
 
+  it("confidence는 ear, shoulder, hip visibility의 최솟값이다", () => {
+    const points = landmarks();
+    points[POSE_LANDMARK.leftEar] = { x: 0.35, y: 0.15, visibility: 0.75 };
+    points[POSE_LANDMARK.leftShoulder] = { x: 0.3, y: 0.35, visibility: 0.9 };
+    points[POSE_LANDMARK.leftHip] = { x: 0.32, y: 0.72, visibility: 0.6 };
+
+    const anatomy = inferSideAnatomy(points);
+
+    expect(anatomy.confidence).toBe(0.6);
+  });
+
+  it("실제 landmark 포인트의 source를 mediapipe로 표시한다", () => {
+    const points = landmarks();
+    points[POSE_LANDMARK.leftEar] = { x: 0.35, y: 0.15, visibility: 0.95 };
+    points[POSE_LANDMARK.leftShoulder] = { x: 0.3, y: 0.35, visibility: 0.95 };
+    points[POSE_LANDMARK.leftHip] = { x: 0.32, y: 0.72, visibility: 0.95 };
+    points[POSE_LANDMARK.leftKnee] = { x: 0.33, y: 0.88, visibility: 0.9 };
+    points[POSE_LANDMARK.leftAnkle] = { x: 0.34, y: 0.98, visibility: 0.9 };
+
+    const anatomy = inferSideAnatomy(points);
+
+    expect(anatomy.points.ear.source).toBe("mediapipe");
+    expect(anatomy.points.shoulder.source).toBe("mediapipe");
+    expect(anatomy.points.hip.source).toBe("mediapipe");
+    expect(anatomy.points.knee.source).toBe("mediapipe");
+    expect(anatomy.points.ankle.source).toBe("mediapipe");
+  });
+
+  it("ear landmark가 빠지면 기준점과 inferred point 좌표를 NaN으로 표시한다", () => {
+    const points = landmarks();
+    delete points[POSE_LANDMARK.leftEar];
+    points[POSE_LANDMARK.leftShoulder] = { x: 0.3, y: 0.35, visibility: 0.95 };
+    points[POSE_LANDMARK.leftHip] = { x: 0.32, y: 0.72, visibility: 0.95 };
+
+    const anatomy = inferSideAnatomy(points);
+
+    expect(anatomy.isStable).toBe(false);
+    expect(anatomy.confidence).toBe(0);
+    expect(Number.isNaN(anatomy.points.ear.x)).toBe(true);
+    expect(Number.isNaN(anatomy.points.cervical.x)).toBe(true);
+  });
+
   it("주요 기준점 visibility가 낮으면 불안정으로 표시한다", () => {
     const points = landmarks();
     points[POSE_LANDMARK.leftEar] = { x: 0.35, y: 0.15, visibility: 0.4 };
