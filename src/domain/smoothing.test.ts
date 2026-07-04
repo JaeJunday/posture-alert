@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PostureSmoother } from "./smoothing";
-import type { BodyPartStatus, PostureAnalysis } from "./types";
+import type { BodyPartStatus, PostureAnalysis, TrackedPoint } from "./types";
 
 function status(part: BodyPartStatus["part"], score: number): BodyPartStatus {
   return {
@@ -12,13 +12,28 @@ function status(part: BodyPartStatus["part"], score: number): BodyPartStatus {
   };
 }
 
-function analysis(overallScore: number, confidence = 1, statuses: BodyPartStatus[] = []): PostureAnalysis {
+function point(id: string): TrackedPoint {
+  return {
+    id,
+    x: 0,
+    y: 0,
+    visibility: 1,
+    source: "mediapipe",
+  };
+}
+
+function analysis(
+  overallScore: number,
+  confidence = 1,
+  statuses: BodyPartStatus[] = [],
+  points: TrackedPoint[] = [],
+): PostureAnalysis {
   return {
     mode: "side",
     overallScore,
     confidence,
     statuses,
-    points: [],
+    points,
   };
 }
 
@@ -70,5 +85,35 @@ describe("PostureSmoother", () => {
         pointIds: ["trunk"],
       },
     ]);
+  });
+
+  it("push 이후 원본 프레임 수정이 이후 평균을 오염시키지 않는다", () => {
+    const smoother = new PostureSmoother(3);
+    const original = analysis(90, 0.9, [status("neck", 90)], [point("ear")]);
+    smoother.push(original);
+
+    original.overallScore = 0;
+    original.confidence = 0;
+    original.statuses[0].score = 0;
+    original.points.push(point("mutated-point"));
+    original.statuses[0].pointIds.push("mutated-point-id");
+
+    const smoothed = smoother.push(analysis(60, 0.8, [status("neck", 60)], [point("shoulder")]));
+
+    expect(smoothed.overallScore).toBe(75);
+    expect(smoothed.confidence).toBe(0.85);
+    expect(smoothed.statuses[0].score).toBe(75);
+  });
+
+  it("반환된 points와 pointIds를 수정해도 입력 프레임을 변경하지 않는다", () => {
+    const smoother = new PostureSmoother(3);
+    const frame = analysis(80, 0.9, [status("neck", 80)], [point("ear")]);
+
+    const smoothed = smoother.push(frame);
+    smoothed.points.push(point("mutated-point"));
+    smoothed.statuses[0].pointIds.push("mutated-point-id");
+
+    expect(frame.points).toEqual([point("ear")]);
+    expect(frame.statuses[0].pointIds).toEqual(["neck"]);
   });
 });

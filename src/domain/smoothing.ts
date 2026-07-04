@@ -1,4 +1,4 @@
-import type { BodyPart, PostureAnalysis } from "./types";
+import type { BodyPart, BodyPartStatus, PostureAnalysis, TrackedPoint } from "./types";
 
 function roundedAverage(values: number[]): number {
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -6,6 +6,25 @@ function roundedAverage(values: number[]): number {
 
 function roundedAverageToTwoDecimals(values: number[]): number {
   return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100;
+}
+
+function copyPoint(point: TrackedPoint): TrackedPoint {
+  return { ...point };
+}
+
+function copyStatus(status: BodyPartStatus): BodyPartStatus {
+  return {
+    ...status,
+    pointIds: [...status.pointIds],
+  };
+}
+
+function copyFrame(frame: PostureAnalysis): PostureAnalysis {
+  return {
+    ...frame,
+    statuses: frame.statuses.map(copyStatus),
+    points: frame.points.map(copyPoint),
+  };
 }
 
 export class PostureSmoother {
@@ -17,17 +36,20 @@ export class PostureSmoother {
   }
 
   push(frame: PostureAnalysis): PostureAnalysis {
-    this.frames.push(frame);
+    const currentFrame = copyFrame(frame);
+    this.frames.push(currentFrame);
     this.frames.splice(0, Math.max(0, this.frames.length - this.windowSize));
 
     return {
-      ...frame,
+      ...currentFrame,
       overallScore: roundedAverage(this.frames.map((recentFrame) => recentFrame.overallScore)),
       confidence: roundedAverageToTwoDecimals(this.frames.map((recentFrame) => recentFrame.confidence)),
-      statuses: frame.statuses.map((status) => ({
+      statuses: currentFrame.statuses.map((status) => ({
         ...status,
+        pointIds: [...status.pointIds],
         score: roundedAverage(this.scoresForPart(status.part)),
       })),
+      points: currentFrame.points.map(copyPoint),
     };
   }
 
