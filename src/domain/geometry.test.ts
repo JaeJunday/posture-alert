@@ -10,7 +10,7 @@ describe("geometry", () => {
     expect(lerpPoint({ x: 0, y: 0, visibility: 1 }, { x: 10, y: 20, visibility: 0.5 }, 0.25)).toEqual({
       x: 2.5,
       y: 5,
-      visibility: 0.75,
+      visibility: 0.875,
     });
   });
 

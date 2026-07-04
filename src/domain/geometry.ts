@@ -14,7 +14,7 @@ export function lerpPoint(a: PoseLandmark, b: PoseLandmark, amount: number): Pos
   const point: PoseLandmark = {
     x: a.x + (b.x - a.x) * amount,
     y: a.y + (b.y - a.y) * amount,
-    visibility: (aVisibility + bVisibility) / 2,
+    visibility: aVisibility + (bVisibility - aVisibility) * amount,
   };
 
   if (a.z !== undefined && b.z !== undefined) {
