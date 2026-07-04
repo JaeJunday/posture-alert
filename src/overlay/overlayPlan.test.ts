@@ -106,4 +106,27 @@ describe("buildOverlayPlan", () => {
     expect(plan.points.find((candidate) => candidate.id === "ear")?.color).toBe("#94a3b8");
     expect(plan.points.find((candidate) => candidate.id === "upperSpine")?.color).toBe("#94a3b8");
   });
+
+  it("NaN 좌표 포인트와 해당 포인트를 endpoint로 쓰는 연결선을 제외한다", () => {
+    const plan = buildOverlayPlan(
+      analysis({
+        points: [
+          point("ear", "mediapipe"),
+          {
+            id: "cervical",
+            x: Number.NaN,
+            y: 0.25,
+            visibility: 0.9,
+            source: "inferred",
+          },
+          point("shoulder", "mediapipe"),
+        ],
+      }),
+      640,
+      480,
+    );
+
+    expect(plan.points.map((candidate) => candidate.id)).toEqual(["ear", "shoulder"]);
+    expect(plan.connections).toEqual([]);
+  });
 });

@@ -65,7 +65,9 @@ export function buildOverlayPlan(analysis: PostureAnalysis, width: number, heigh
     }
   }
 
-  const points = analysis.points.map((point) => toOverlayPoint(point, width, height, highlightedPointIds, unstablePointIds));
+  const points = analysis.points
+    .filter(hasFiniteCoordinates)
+    .map((point) => toOverlayPoint(point, width, height, highlightedPointIds, unstablePointIds));
   const pointsById = new Map(points.map((point) => [point.id, point]));
   const connections = CONNECTION_PAIRS.flatMap(([from, to]) => {
     const start = pointsById.get(from);
@@ -95,6 +97,10 @@ export function buildOverlayPlan(analysis: PostureAnalysis, width: number, heigh
     points,
     connections,
   };
+}
+
+function hasFiniteCoordinates(point: TrackedPoint): boolean {
+  return Number.isFinite(point.x) && Number.isFinite(point.y);
 }
 
 function toOverlayPoint(
