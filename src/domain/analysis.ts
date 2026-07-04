@@ -5,6 +5,17 @@ import type { BodyPart, BodyPartStatus, PostureAnalysis, Severity, TrackedPoint 
 const MIN_VISIBILITY = 0.55;
 const UNSTABLE_MESSAGE = "기준점 추적이 불안정해요. 카메라 위치를 조정해 주세요.";
 const CORE_POINT_IDS = ["ear", "shoulder", "hip"] as const satisfies readonly PointId[];
+const POINT_ORDER = [
+  "ear",
+  "shoulder",
+  "hip",
+  "knee",
+  "ankle",
+  "cervical",
+  "upperSpine",
+  "midSpine",
+  "lumbar",
+] as const satisfies readonly PointId[];
 
 type PointId = keyof SideAnatomy["points"];
 type MetricDefinition = {
@@ -78,31 +89,13 @@ export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
     };
   }
 
-  const { ear, shoulder, hip, cervical, upperSpine, midSpine, lumbar } = anatomy.points;
-  const torsoLength = Math.max(distance2d(shoulder, hip), 0.001);
-  const centerX = (shoulder.x + hip.x) / 2;
-
-  const valuesByPart: Record<BodyPart, number> = {
-    neck: Math.abs(ear.x - shoulder.x) / torsoLength,
-    cervical: angleFromVerticalDegrees(ear, shoulder),
-    spine:
-      Math.max(
-        Math.abs(cervical.x - centerX),
-        Math.abs(upperSpine.x - centerX),
-        Math.abs(midSpine.x - centerX),
-        Math.abs(lumbar.x - centerX),
-      ) / torsoLength,
-    lumbar: Math.abs(lumbar.x - hip.x) / torsoLength,
-    trunk: angleFromVerticalDegrees(shoulder, hip),
-  };
-
   let weightedTotal = 0;
   const statuses: BodyPartStatus[] = METRICS.map((metric) => {
     if (hasUnstableInput(anatomy, metric.inputPointIds)) {
       return unstableStatus(metric, [...metric.pointIds]);
     }
 
-    const value = valuesByPart[metric.part];
+    const value = valueForMetric(anatomy, metric.part);
     if (!Number.isFinite(value)) {
       return unstableStatus(metric, [...metric.pointIds]);
     }
@@ -130,8 +123,47 @@ export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
 }
 
 function orderedPoints(anatomy: SideAnatomy): TrackedPoint[] {
-  const { ear, shoulder, hip, knee, ankle, cervical, upperSpine, midSpine, lumbar } = anatomy.points;
-  return [ear, shoulder, hip, knee, ankle, cervical, upperSpine, midSpine, lumbar];
+  const points: TrackedPoint[] = [];
+
+  for (const pointId of POINT_ORDER) {
+    const point = anatomy.points[pointId];
+    if (point !== undefined) {
+      points.push(point);
+    }
+  }
+
+  return points;
+}
+
+function valueForMetric(anatomy: SideAnatomy, part: BodyPart): number {
+  const { ear, shoulder, hip, cervical, upperSpine, midSpine, lumbar } = anatomy.points;
+
+  switch (part) {
+    case "neck":
+      return Math.abs(ear.x - shoulder.x) / torsoLength(shoulder, hip);
+    case "cervical":
+      return angleFromVerticalDegrees(ear, shoulder);
+    case "spine": {
+      const length = torsoLength(shoulder, hip);
+      const centerX = (shoulder.x + hip.x) / 2;
+      return (
+        Math.max(
+          Math.abs(cervical.x - centerX),
+          Math.abs(upperSpine.x - centerX),
+          Math.abs(midSpine.x - centerX),
+          Math.abs(lumbar.x - centerX),
+        ) / length
+      );
+    }
+    case "lumbar":
+      return Math.abs(lumbar.x - hip.x) / torsoLength(shoulder, hip);
+    case "trunk":
+      return angleFromVerticalDegrees(shoulder, hip);
+  }
+}
+
+function torsoLength(shoulder: TrackedPoint, hip: TrackedPoint): number {
+  return Math.max(distance2d(shoulder, hip), 0.001);
 }
 
 function isFullyUnstable(anatomy: SideAnatomy): boolean {

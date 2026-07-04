@@ -3,6 +3,8 @@ import { analyzePosture } from "./analysis";
 import type { SideAnatomy } from "./anatomy";
 import type { BodyPart, BodyPartStatus, TrackedPoint } from "./types";
 
+const UNSTABLE_MESSAGE = "기준점 추적이 불안정해요. 카메라 위치를 조정해 주세요.";
+
 function point(id: string, x: number, y: number, visibility = 0.95): TrackedPoint {
   const source = ["cervical", "upperSpine", "midSpine", "lumbar"].includes(id) ? "inferred" : "mediapipe";
 
@@ -34,6 +36,17 @@ function anatomy(overrides: Partial<SideAnatomy["points"]> = {}, isStable = true
     isStable,
     confidence: 0.87,
     points,
+  };
+}
+
+function anatomyWithout(pointId: keyof SideAnatomy["points"]): SideAnatomy {
+  const base = anatomy();
+  const points: Partial<SideAnatomy["points"]> = { ...base.points };
+  delete points[pointId];
+
+  return {
+    ...base,
+    points: points as SideAnatomy["points"],
   };
 }
 
@@ -119,14 +132,36 @@ describe("analysis", () => {
     expect(statusByPart(result.statuses, "neck")).toMatchObject({
       severity: "unstable",
       score: 0,
+      message: UNSTABLE_MESSAGE,
       pointIds: ["ear", "shoulder"],
     });
     expect(statusByPart(result.statuses, "cervical")).toMatchObject({
       severity: "unstable",
       score: 0,
+      message: UNSTABLE_MESSAGE,
       pointIds: ["ear", "cervical", "shoulder"],
     });
     expect(statusByPart(result.statuses, "spine").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "lumbar").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "trunk").severity).toBe("ok");
+  });
+
+  it("특정 metric point가 없으면 함수가 throw하지 않고 해당 부위만 불안정 상태를 반환한다", () => {
+    const subject = () => analyzePosture(anatomyWithout("midSpine"));
+
+    expect(subject).not.toThrow();
+    const result = subject();
+
+    expect(Number.isFinite(result.overallScore)).toBe(true);
+    expect(result.overallScore).toBe(82);
+    expect(statusByPart(result.statuses, "spine")).toMatchObject({
+      severity: "unstable",
+      score: 0,
+      message: UNSTABLE_MESSAGE,
+      pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
+    });
+    expect(statusByPart(result.statuses, "neck").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "cervical").severity).toBe("ok");
     expect(statusByPart(result.statuses, "lumbar").severity).toBe("ok");
     expect(statusByPart(result.statuses, "trunk").severity).toBe("ok");
   });
@@ -143,6 +178,27 @@ describe("analysis", () => {
     expect(statusByPart(result.statuses, "spine")).toMatchObject({
       severity: "unstable",
       score: 0,
+      pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
+    });
+    expect(statusByPart(result.statuses, "neck").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "cervical").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "lumbar").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "trunk").severity).toBe("ok");
+  });
+
+  it("Infinity 좌표를 참조하는 부위만 불안정 상태를 반환한다", () => {
+    const result = analyzePosture(
+      anatomy({
+        upperSpine: point("upperSpine", Number.POSITIVE_INFINITY, 0.4125),
+      }),
+    );
+
+    expect(Number.isFinite(result.overallScore)).toBe(true);
+    expect(result.overallScore).toBe(82);
+    expect(statusByPart(result.statuses, "spine")).toMatchObject({
+      severity: "unstable",
+      score: 0,
+      message: UNSTABLE_MESSAGE,
       pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
     });
     expect(statusByPart(result.statuses, "neck").severity).toBe("ok");
@@ -169,8 +225,6 @@ describe("analysis", () => {
     expect(result.statuses.every((status) => status.severity === "unstable")).toBe(true);
     expect(result.statuses.every((status) => status.score === 0)).toBe(true);
     expect(result.statuses.every((status) => status.pointIds.length === 0)).toBe(true);
-    expect(result.statuses.every((status) => status.message === "기준점 추적이 불안정해요. 카메라 위치를 조정해 주세요.")).toBe(
-      true,
-    );
+    expect(result.statuses.every((status) => status.message === UNSTABLE_MESSAGE)).toBe(true);
   });
 });
