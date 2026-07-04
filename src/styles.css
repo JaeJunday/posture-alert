@@ -76,6 +76,36 @@ select {
   line-height: 1;
 }
 
+.status-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.status-card p {
+  margin: 0;
+  color: #475569;
+}
+
+.status-card--warning,
+.status-card--danger {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.status-card--warning strong,
+.status-card--danger strong {
+  color: #9a3412;
+}
+
+.status-card--unstable {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
 .toolbar {
   grid-column: 1 / -1;
   display: flex;
