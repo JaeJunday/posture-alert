@@ -93,7 +93,7 @@ const FULL_METRICS = [
     label: "목",
     warning: 0.12,
     danger: 0.24,
-    weight: 0.24,
+    weight: 0.2,
     pointIds: ["ear", "shoulder"],
     inputPointIds: ["ear", "shoulder", "hip"],
   },
@@ -102,7 +102,7 @@ const FULL_METRICS = [
     label: "경추",
     warning: 18,
     danger: 34,
-    weight: 0.19,
+    weight: 0.17,
     pointIds: ["ear", "cervical", "shoulder"],
     inputPointIds: ["ear", "cervical", "shoulder"],
   },
@@ -111,7 +111,7 @@ const FULL_METRICS = [
     label: "척추",
     warning: 0.08,
     danger: 0.18,
-    weight: 0.16,
+    weight: 0.14,
     pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
     inputPointIds: ["cervical", "upperSpine", "midSpine", "lumbar", "shoulder", "hip"],
   },
@@ -120,7 +120,7 @@ const FULL_METRICS = [
     label: "요추",
     warning: 0.08,
     danger: 0.18,
-    weight: 0.12,
+    weight: 0.11,
     pointIds: ["lumbar", "hip"],
     inputPointIds: ["lumbar", "hip", "shoulder"],
   },
@@ -129,7 +129,7 @@ const FULL_METRICS = [
     label: "몸통",
     warning: 10,
     danger: 24,
-    weight: 0.17,
+    weight: 0.15,
     pointIds: ["shoulder", "hip"],
     inputPointIds: ["shoulder", "hip"],
   },
@@ -138,16 +138,16 @@ const FULL_METRICS = [
     label: "팔",
     warning: 1,
     danger: 1,
-    weight: 0.05,
+    weight: 0.03,
     pointIds: ["shoulder", "elbow", "wrist"],
     inputPointIds: ["shoulder", "elbow", "wrist"],
   },
   {
     part: "legs",
     label: "다리",
-    warning: 0.12,
-    danger: 0.28,
-    weight: 0.07,
+    warning: 0.08,
+    danger: 0.25,
+    weight: 0.2,
     pointIds: ["hip", "knee", "ankle"],
     inputPointIds: ["hip", "knee", "ankle"],
   },
@@ -187,7 +187,7 @@ export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
       part: metric.part,
       severity,
       score,
-      message: messageFor(metric.label, severity),
+      message: messageFor(metric.part, metric.label, severity),
       pointIds: [...metric.pointIds],
     };
   });
@@ -247,12 +247,26 @@ function valueForMetric(anatomy: SideAnatomy, part: BodyPart): number {
     case "arms":
       return 0;
     case "legs":
-      return Math.abs(knee.x - ankle.x) / torsoLength(hip, knee);
+      return legRiskValue(shoulder, hip, knee, ankle);
   }
 }
 
 function torsoLength(shoulder: TrackedPoint, hip: TrackedPoint): number {
   return Math.max(distance2d(shoulder, hip), 0.001);
+}
+
+function legRiskValue(
+  shoulder: TrackedPoint,
+  hip: TrackedPoint,
+  knee: TrackedPoint,
+  ankle: TrackedPoint,
+): number {
+  const torso = torsoLength(shoulder, hip);
+  const lowerLegLean = Math.abs(knee.x - ankle.x) / torso;
+  const kneeLift = Math.max(0, hip.y - knee.y) / torso;
+  const ankleLift = Math.max(0, hip.y - ankle.y) / torso;
+
+  return Math.max(lowerLegLean, kneeLift, ankleLift);
 }
 
 function isFullyUnstable(anatomy: SideAnatomy): boolean {
@@ -303,13 +317,21 @@ function severityFromScore(score: number): Severity {
   return "danger";
 }
 
-function messageFor(label: string, severity: Severity): string {
+function messageFor(part: BodyPart, label: string, severity: Severity): string {
   if (severity === "ok") {
     return `${label} 정렬이 안정적이에요.`;
   }
 
   if (severity === "warning") {
+    if (part === "legs") {
+      return "무릎 높이가 높아요. 다리를 바닥 쪽으로 내려 주세요.";
+    }
+
     return `${label} 정렬을 조금 세워 주세요.`;
+  }
+
+  if (part === "legs") {
+    return "다리가 의자 위로 올라간 자세처럼 보여요.";
   }
 
   return `${label} 정렬이 많이 무너졌어요.`;
