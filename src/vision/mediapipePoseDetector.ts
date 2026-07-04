@@ -9,6 +9,15 @@ const MODEL_URL =
 type Delegate = "CPU" | "GPU";
 type CreateOptions = Parameters<typeof PoseLandmarker.createFromOptions>[1];
 
+const CPU_FALLBACK_ERROR_SIGNALS = [
+  "delegate",
+  "gpu",
+  "webgl",
+  "wasm",
+  "not supported",
+  "unsupported",
+] as const;
+
 function createOptions(delegate: Delegate): CreateOptions {
   return {
     baseOptions: {
@@ -23,6 +32,40 @@ function createOptions(delegate: Delegate): CreateOptions {
   };
 }
 
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    const name = error.name && error.name !== "Error" ? `${error.name}: ` : "";
+    return `${name}${error.message}`;
+  }
+
+  return String(error);
+}
+
+function isCpuFallbackEligibleError(error: unknown): boolean {
+  const text = describeError(error).toLowerCase();
+  const compactText = text.replace(/[\s_-]+/g, "");
+
+  return CPU_FALLBACK_ERROR_SIGNALS.some((signal) => {
+    const compactSignal = signal.replace(/\s+/g, "");
+    return text.includes(signal) || compactText.includes(compactSignal);
+  });
+}
+
+function preserveGpuFailureCause(cpuError: unknown, gpuError: unknown): Error {
+  const gpuDescription = describeError(gpuError);
+
+  if (cpuError instanceof Error) {
+    const errorWithCause = cpuError as Error & { cause?: unknown };
+    errorWithCause.message = `${cpuError.message} (GPU fallback cause: ${gpuDescription})`;
+    errorWithCause.cause ??= gpuError;
+    return errorWithCause;
+  }
+
+  return new Error(`MediaPipe CPU fallback failed after GPU fallback cause: ${gpuDescription}`, {
+    cause: cpuError,
+  });
+}
+
 export class MediaPipePoseDetector implements PoseDetector {
   private constructor(private readonly landmarker: PoseLandmarker) {}
 
@@ -32,8 +75,16 @@ export class MediaPipePoseDetector implements PoseDetector {
 
     try {
       landmarker = await PoseLandmarker.createFromOptions(vision, createOptions("GPU"));
-    } catch {
-      landmarker = await PoseLandmarker.createFromOptions(vision, createOptions("CPU"));
+    } catch (gpuError) {
+      if (!isCpuFallbackEligibleError(gpuError)) {
+        throw gpuError;
+      }
+
+      try {
+        landmarker = await PoseLandmarker.createFromOptions(vision, createOptions("CPU"));
+      } catch (cpuError) {
+        throw preserveGpuFailureCause(cpuError, gpuError);
+      }
     }
 
     return new MediaPipePoseDetector(landmarker);
