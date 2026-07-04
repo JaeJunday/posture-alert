@@ -15,18 +15,21 @@ function point(id: string, source: TrackedPoint["source"], visibility = 0.9): Tr
 function analysis(overrides: Partial<PostureAnalysis> = {}): PostureAnalysis {
   return {
     mode: "side",
+    trackingScope: "upper",
     overallScore: 80,
     confidence: 0.9,
     statuses: [],
-    points: [
-      point("ear", "mediapipe"),
-      point("cervical", "inferred"),
-      point("shoulder", "mediapipe"),
-      point("upperSpine", "inferred"),
-      point("midSpine", "inferred"),
-      point("lumbar", "inferred"),
-      point("hip", "mediapipe"),
-    ],
+        points: [
+          point("ear", "mediapipe"),
+          point("cervical", "inferred"),
+          point("shoulder", "mediapipe"),
+          point("upperSpine", "inferred"),
+          point("midSpine", "inferred"),
+          point("lumbar", "inferred"),
+          point("hip", "mediapipe"),
+          point("knee", "mediapipe"),
+          point("ankle", "mediapipe"),
+        ],
     ...overrides,
   };
 }
@@ -128,5 +131,41 @@ describe("buildOverlayPlan", () => {
 
     expect(plan.points.map((candidate) => candidate.id)).toEqual(["ear", "shoulder"]);
     expect(plan.connections).toEqual([]);
+  });
+
+  it("전신 추적이면 골반부터 발목까지 다리 연결선을 만든다", () => {
+    const plan = buildOverlayPlan(
+      analysis({
+        trackingScope: "full",
+      }),
+      640,
+      480,
+    );
+
+    expect(plan.connections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: "hip", to: "knee" }),
+        expect.objectContaining({ from: "knee", to: "ankle" }),
+      ]),
+    );
+  });
+
+  it("상체 추적이면 다리 포인트와 연결선을 제외한다", () => {
+    const plan = buildOverlayPlan(
+      analysis({
+        trackingScope: "upper",
+      }),
+      640,
+      480,
+    );
+
+    expect(plan.points.map((candidate) => candidate.id)).not.toContain("knee");
+    expect(plan.points.map((candidate) => candidate.id)).not.toContain("ankle");
+    expect(plan.connections).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: "hip", to: "knee" }),
+        expect.objectContaining({ from: "knee", to: "ankle" }),
+      ]),
+    );
   });
 });

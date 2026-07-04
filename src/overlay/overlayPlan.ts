@@ -19,10 +19,14 @@ const POINT_RADII = {
 const CONNECTION_PAIRS = [
   ["ear", "cervical"],
   ["cervical", "shoulder"],
+  ["shoulder", "elbow"],
+  ["elbow", "wrist"],
   ["cervical", "upperSpine"],
   ["upperSpine", "midSpine"],
   ["midSpine", "lumbar"],
   ["lumbar", "hip"],
+  ["hip", "knee"],
+  ["knee", "ankle"],
 ] as const;
 
 export type OverlayPoint = {
@@ -66,6 +70,7 @@ export function buildOverlayPlan(analysis: PostureAnalysis, width: number, heigh
   }
 
   const points = analysis.points
+    .filter((point) => analysis.trackingScope === "full" || (point.id !== "knee" && point.id !== "ankle"))
     .filter(hasFiniteCoordinates)
     .map((point) => toOverlayPoint(point, width, height, highlightedPointIds, unstablePointIds));
   const pointsById = new Map(points.map((point) => [point.id, point]));

@@ -30,6 +30,7 @@ function analysis(
 ): PostureAnalysis {
   return {
     mode: "side",
+    trackingScope: "upper",
     overallScore,
     confidence,
     statuses,

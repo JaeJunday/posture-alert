@@ -1,4 +1,5 @@
 export type AnalysisMode = "side";
+export type TrackingScope = "upper" | "full";
 export type Severity = "ok" | "warning" | "danger" | "unstable";
 export type PointSource = "mediapipe" | "inferred";
 export type Side = "left" | "right";
@@ -20,7 +21,7 @@ export type TrackedPoint = Point2D & {
   source: PointSource;
 };
 
-export type BodyPart = "neck" | "cervical" | "spine" | "lumbar" | "trunk";
+export type BodyPart = "neck" | "cervical" | "spine" | "lumbar" | "trunk" | "arms" | "legs";
 
 export type BodyPartStatus = {
   part: BodyPart;
@@ -32,6 +33,7 @@ export type BodyPartStatus = {
 
 export type PostureAnalysis = {
   mode: AnalysisMode;
+  trackingScope: TrackingScope;
   overallScore: number;
   confidence: number;
   statuses: BodyPartStatus[];

@@ -25,6 +25,7 @@ function point(id: string, x: number, y: number, source: TrackedPoint["source"])
 function analysis(): PostureAnalysis {
   return {
     mode: "side",
+    trackingScope: "upper",
     overallScore: 90,
     confidence: 0.9,
     statuses: [],

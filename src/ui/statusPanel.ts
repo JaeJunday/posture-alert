@@ -12,7 +12,14 @@ const PART_LABEL: Record<BodyPart, string> = {
   spine: "척추",
   lumbar: "요추",
   trunk: "상체",
+  arms: "팔",
+  legs: "다리",
 };
+
+const SCOPE_LABEL = {
+  upper: "상체 추적",
+  full: "전신 추적",
+} as const satisfies Record<PostureAnalysis["trackingScope"], string>;
 
 export function renderStatusPanel(
   elements: StatusPanelElements,
@@ -21,7 +28,7 @@ export function renderStatusPanel(
   elements.scoreValue.textContent = String(analysis.overallScore);
   elements.confidenceValue.textContent = `추적 신뢰도 ${Math.round(
     analysis.confidence * 100,
-  )}%`;
+  )}% · ${SCOPE_LABEL[analysis.trackingScope]}`;
   elements.statusList.replaceChildren(...analysis.statuses.map(renderStatusCard));
 }
 

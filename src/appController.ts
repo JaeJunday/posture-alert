@@ -8,6 +8,9 @@ import type { AppShell } from "./ui/appShell";
 import { MediaPipePoseDetector } from "./vision/mediapipePoseDetector";
 import type { PoseDetector } from "./vision/poseDetector";
 
+const AUTO_START_STORAGE_KEY = "posture-alert:auto-start-camera";
+const SCORE_UPDATE_INTERVAL_MS = 1000;
+
 type AppControllerDependencies = {
   camera?: Pick<CameraController, "start" | "stop">;
   createDetector?: () => Promise<PoseDetector>;
@@ -41,6 +44,7 @@ export function createAppController(
 
   let detector: PoseDetector | null = null;
   let frameRequestId: number | null = null;
+  let lastScoreUpdateMs = Number.NEGATIVE_INFINITY;
   let running = false;
 
   async function init(): Promise<void> {
@@ -48,6 +52,10 @@ export function createAppController(
     shell.stopButton.addEventListener("click", stop);
     await refreshCameraOptions();
     updateControls(false);
+
+    if (shouldAutoStart()) {
+      await start();
+    }
   }
 
   async function start(): Promise<void> {
@@ -63,7 +71,9 @@ export function createAppController(
       await refreshCameraOptions();
       detector = await createDetector();
       running = true;
+      setAutoStart(true);
       smoother.reset();
+      lastScoreUpdateMs = Number.NEGATIVE_INFINITY;
       setMessage("옆모습이 화면에 들어오도록 앉아 주세요.");
       scheduleNextFrame();
     } catch (error) {
@@ -79,6 +89,7 @@ export function createAppController(
 
   function stop(): void {
     running = false;
+    setAutoStart(false);
 
     if (frameRequestId !== null) {
       cancelFrame(frameRequestId);
@@ -89,6 +100,7 @@ export function createAppController(
     detector?.close();
     detector = null;
     smoother.reset();
+    lastScoreUpdateMs = Number.NEGATIVE_INFINITY;
     overlayRenderer.clear();
     updateControls(false);
     setMessage("카메라를 시작하면 옆모습 자세 분석을 시작해요.");
@@ -125,16 +137,20 @@ export function createAppController(
     const anatomy = inferSideAnatomy(result.landmarks);
     const analysis = smoother.push(analyzePosture(anatomy));
 
-    renderStatusPanel(
-      {
-        scoreValue: shell.scoreValue,
-        confidenceValue: shell.confidenceValue,
-        statusList: shell.statusList,
-      },
-      analysis,
-    );
+    if (timestampMs - lastScoreUpdateMs >= SCORE_UPDATE_INTERVAL_MS) {
+      renderStatusPanel(
+        {
+          scoreValue: shell.scoreValue,
+          confidenceValue: shell.confidenceValue,
+          statusList: shell.statusList,
+        },
+        analysis,
+      );
+      lastScoreUpdateMs = timestampMs;
+    }
+
     overlayRenderer.render(analysis, shell.video);
-    setMessage(messageForAnalysis(analysis.confidence));
+    setMessage(messageForAnalysis(analysis.confidence, analysis.trackingScope));
     scheduleNextFrame();
   }
 
@@ -216,10 +232,38 @@ function includesErrorText(error: unknown, text: string): boolean {
   return error instanceof Error && error.message.toLowerCase().includes(text);
 }
 
-function messageForAnalysis(confidence: number): string {
+function messageForAnalysis(confidence: number, trackingScope: "upper" | "full"): string {
   if (confidence < 0.55) {
     return "기준점 추적이 불안정해요. 카메라 위치를 조정해 주세요.";
   }
 
-  return "옆모습 자세를 분석하고 있어요.";
+  return trackingScope === "full"
+    ? "전신 기준으로 옆모습 자세를 분석하고 있어요."
+    : "상체 기준으로 옆모습 자세를 분석하고 있어요.";
+}
+
+function shouldAutoStart(): boolean {
+  return safeLocalStorage()?.getItem(AUTO_START_STORAGE_KEY) === "1";
+}
+
+function setAutoStart(enabled: boolean): void {
+  const storage = safeLocalStorage();
+  if (!storage) {
+    return;
+  }
+
+  if (enabled) {
+    storage.setItem(AUTO_START_STORAGE_KEY, "1");
+    return;
+  }
+
+  storage.removeItem(AUTO_START_STORAGE_KEY);
+}
+
+function safeLocalStorage(): Storage | null {
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }

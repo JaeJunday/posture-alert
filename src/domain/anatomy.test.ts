@@ -20,6 +20,22 @@ describe("anatomy", () => {
     expect(selectVisibleSide(points)).toBe("left");
   });
 
+  it("상체 visibility가 비슷하면 무릎과 발목이 더 잘 보이는 측면을 고른다", () => {
+    const points = landmarks();
+    points[POSE_LANDMARK.leftEar] = { x: 0.2, y: 0.1, visibility: 0.8 };
+    points[POSE_LANDMARK.leftShoulder] = { x: 0.24, y: 0.35, visibility: 0.8 };
+    points[POSE_LANDMARK.leftHip] = { x: 0.3, y: 0.7, visibility: 0.8 };
+    points[POSE_LANDMARK.leftKnee] = { x: 0.3, y: 0.85, visibility: 0.1 };
+    points[POSE_LANDMARK.leftAnkle] = { x: 0.3, y: 0.95, visibility: 0.1 };
+    points[POSE_LANDMARK.rightEar] = { x: 0.8, y: 0.1, visibility: 0.75 };
+    points[POSE_LANDMARK.rightShoulder] = { x: 0.76, y: 0.35, visibility: 0.75 };
+    points[POSE_LANDMARK.rightHip] = { x: 0.7, y: 0.7, visibility: 0.75 };
+    points[POSE_LANDMARK.rightKnee] = { x: 0.7, y: 0.85, visibility: 0.95 };
+    points[POSE_LANDMARK.rightAnkle] = { x: 0.7, y: 0.95, visibility: 0.95 };
+
+    expect(selectVisibleSide(points)).toBe("right");
+  });
+
   it("가상 경추, 척추, 요추 포인트를 만든다", () => {
     const points = landmarks();
     points[POSE_LANDMARK.leftEar] = { x: 0.35, y: 0.15, visibility: 0.95 };

@@ -21,6 +21,8 @@ function anatomy(overrides: Partial<SideAnatomy["points"]> = {}, isStable = true
   const points: SideAnatomy["points"] = {
     ear: point("ear", 0.5, 0.1),
     shoulder: point("shoulder", 0.5, 0.3),
+    elbow: point("elbow", 0.5, 0.48),
+    wrist: point("wrist", 0.5, 0.62),
     hip: point("hip", 0.5, 0.75),
     knee: point("knee", 0.5, 0.9),
     ankle: point("ankle", 0.5, 1),
@@ -61,18 +63,23 @@ describe("analysis", () => {
     const result = analyzePosture(anatomy());
 
     expect(result.mode).toBe("side");
+    expect(result.trackingScope).toBe("full");
     expect(result.confidence).toBe(0.87);
     expect(result.overallScore).toBe(100);
-    expect(result.statuses).toHaveLength(5);
+    expect(result.statuses).toHaveLength(7);
     expect(result.statuses.every((status) => status.severity === "ok")).toBe(true);
     expect(statusByPart(result.statuses, "neck").pointIds).toEqual(["ear", "shoulder"]);
     expect(statusByPart(result.statuses, "cervical").pointIds).toEqual(["ear", "cervical", "shoulder"]);
     expect(statusByPart(result.statuses, "spine").pointIds).toEqual(["cervical", "upperSpine", "midSpine", "lumbar"]);
     expect(statusByPart(result.statuses, "lumbar").pointIds).toEqual(["lumbar", "hip"]);
     expect(statusByPart(result.statuses, "trunk").pointIds).toEqual(["shoulder", "hip"]);
+    expect(statusByPart(result.statuses, "arms").pointIds).toEqual(["shoulder", "elbow", "wrist"]);
+    expect(statusByPart(result.statuses, "legs").pointIds).toEqual(["hip", "knee", "ankle"]);
     expect(result.points.map((trackedPoint) => trackedPoint.id)).toEqual([
       "ear",
       "shoulder",
+      "elbow",
+      "wrist",
       "hip",
       "knee",
       "ankle",
@@ -81,6 +88,35 @@ describe("analysis", () => {
       "midSpine",
       "lumbar",
     ]);
+  });
+
+  it("하체 기준점이 불안정하면 상체 추적으로 전환하고 다리 상태와 포인트를 제외한다", () => {
+    const result = analyzePosture(
+      anatomy({
+        knee: point("knee", 0.5, 0.9, 0.2),
+      }),
+    );
+
+    expect(result.trackingScope).toBe("upper");
+    expect(result.overallScore).toBe(100);
+    expect(result.statuses.map((status) => status.part)).toEqual(["neck", "cervical", "spine", "lumbar", "trunk", "arms"]);
+    expect(result.points.map((trackedPoint) => trackedPoint.id)).not.toContain("knee");
+    expect(result.points.map((trackedPoint) => trackedPoint.id)).not.toContain("ankle");
+  });
+
+  it("하체 기준점이 잡히면 다리 점수를 전체 점수에 포함한다", () => {
+    const result = analyzePosture(
+      anatomy({
+        ankle: point("ankle", 0.525, 1),
+      }),
+    );
+
+    expect(result.trackingScope).toBe("full");
+    expect(result.overallScore).toBeLessThan(100);
+    expect(statusByPart(result.statuses, "legs")).toMatchObject({
+      severity: "warning",
+      pointIds: ["hip", "knee", "ankle"],
+    });
   });
 
   it("거북목 자세는 점수가 낮아지고 목과 경추 상태가 정상이 아니게 된다", () => {
@@ -127,7 +163,7 @@ describe("analysis", () => {
       ),
     );
 
-    expect(result.overallScore).toBe(50);
+    expect(result.overallScore).toBe(57);
     expect(result.statuses.every((status) => status.severity === "unstable")).toBe(false);
     expect(statusByPart(result.statuses, "neck")).toMatchObject({
       severity: "unstable",
@@ -153,7 +189,7 @@ describe("analysis", () => {
     const result = subject();
 
     expect(Number.isFinite(result.overallScore)).toBe(true);
-    expect(result.overallScore).toBe(82);
+    expect(result.overallScore).toBe(84);
     expect(statusByPart(result.statuses, "spine")).toMatchObject({
       severity: "unstable",
       score: 0,
@@ -174,7 +210,7 @@ describe("analysis", () => {
     );
 
     expect(Number.isFinite(result.overallScore)).toBe(true);
-    expect(result.overallScore).toBe(82);
+    expect(result.overallScore).toBe(84);
     expect(statusByPart(result.statuses, "spine")).toMatchObject({
       severity: "unstable",
       score: 0,
@@ -194,7 +230,7 @@ describe("analysis", () => {
     );
 
     expect(Number.isFinite(result.overallScore)).toBe(true);
-    expect(result.overallScore).toBe(82);
+    expect(result.overallScore).toBe(84);
     expect(statusByPart(result.statuses, "spine")).toMatchObject({
       severity: "unstable",
       score: 0,
@@ -221,7 +257,7 @@ describe("analysis", () => {
 
     expect(result.overallScore).toBe(0);
     expect(result.confidence).toBe(0.87);
-    expect(result.statuses.map((status) => status.part)).toEqual(["neck", "cervical", "spine", "lumbar", "trunk"]);
+    expect(result.statuses.map((status) => status.part)).toEqual(["neck", "cervical", "spine", "lumbar", "trunk", "arms", "legs"]);
     expect(result.statuses.every((status) => status.severity === "unstable")).toBe(true);
     expect(result.statuses.every((status) => status.score === 0)).toBe(true);
     expect(result.statuses.every((status) => status.pointIds.length === 0)).toBe(true);

@@ -13,6 +13,7 @@ function createElements() {
 function createAnalysis(overrides: Partial<PostureAnalysis> = {}): PostureAnalysis {
   return {
     mode: "side",
+    trackingScope: "upper",
     overallScore: 72,
     confidence: 0.876,
     statuses: [
@@ -36,7 +37,15 @@ describe("renderStatusPanel", () => {
     renderStatusPanel(elements, createAnalysis());
 
     expect(elements.scoreValue.textContent).toBe("72");
-    expect(elements.confidenceValue.textContent).toBe("추적 신뢰도 88%");
+    expect(elements.confidenceValue.textContent).toBe("추적 신뢰도 88% · 상체 추적");
+  });
+
+  it("전신 추적 범위이면 신뢰도 옆에 전신 추적을 표시한다", () => {
+    const elements = createElements();
+
+    renderStatusPanel(elements, createAnalysis({ trackingScope: "full" }));
+
+    expect(elements.confidenceValue.textContent).toBe("추적 신뢰도 88% · 전신 추적");
   });
 
   it("한국어 부위 라벨과 메시지를 표시한다", () => {

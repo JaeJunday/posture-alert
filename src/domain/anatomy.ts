@@ -4,7 +4,7 @@ import type { PoseLandmark, Side, TrackedPoint } from "./types";
 
 const MIN_VISIBILITY = 0.55;
 
-type SideKey = "ear" | "shoulder" | "hip" | "knee" | "ankle";
+type SideKey = "ear" | "shoulder" | "elbow" | "wrist" | "hip" | "knee" | "ankle";
 
 type SidePoints = Record<SideKey, TrackedPoint>;
 
@@ -24,11 +24,19 @@ export function selectVisibleSide(landmarks: PoseLandmark[]): Side {
   const leftScore =
     visibilityAt(landmarks, POSE_LANDMARK.leftEar) +
     visibilityAt(landmarks, POSE_LANDMARK.leftShoulder) +
-    visibilityAt(landmarks, POSE_LANDMARK.leftHip);
+    visibilityAt(landmarks, POSE_LANDMARK.leftElbow) +
+    visibilityAt(landmarks, POSE_LANDMARK.leftWrist) +
+    visibilityAt(landmarks, POSE_LANDMARK.leftHip) +
+    visibilityAt(landmarks, POSE_LANDMARK.leftKnee) +
+    visibilityAt(landmarks, POSE_LANDMARK.leftAnkle);
   const rightScore =
     visibilityAt(landmarks, POSE_LANDMARK.rightEar) +
     visibilityAt(landmarks, POSE_LANDMARK.rightShoulder) +
-    visibilityAt(landmarks, POSE_LANDMARK.rightHip);
+    visibilityAt(landmarks, POSE_LANDMARK.rightElbow) +
+    visibilityAt(landmarks, POSE_LANDMARK.rightWrist) +
+    visibilityAt(landmarks, POSE_LANDMARK.rightHip) +
+    visibilityAt(landmarks, POSE_LANDMARK.rightKnee) +
+    visibilityAt(landmarks, POSE_LANDMARK.rightAnkle);
 
   return leftScore >= rightScore ? "left" : "right";
 }
@@ -40,6 +48,8 @@ export function inferSideAnatomy(landmarks: PoseLandmark[]): SideAnatomy {
       ? {
           ear: POSE_LANDMARK.leftEar,
           shoulder: POSE_LANDMARK.leftShoulder,
+          elbow: POSE_LANDMARK.leftElbow,
+          wrist: POSE_LANDMARK.leftWrist,
           hip: POSE_LANDMARK.leftHip,
           knee: POSE_LANDMARK.leftKnee,
           ankle: POSE_LANDMARK.leftAnkle,
@@ -47,6 +57,8 @@ export function inferSideAnatomy(landmarks: PoseLandmark[]): SideAnatomy {
       : {
           ear: POSE_LANDMARK.rightEar,
           shoulder: POSE_LANDMARK.rightShoulder,
+          elbow: POSE_LANDMARK.rightElbow,
+          wrist: POSE_LANDMARK.rightWrist,
           hip: POSE_LANDMARK.rightHip,
           knee: POSE_LANDMARK.rightKnee,
           ankle: POSE_LANDMARK.rightAnkle,
@@ -54,6 +66,8 @@ export function inferSideAnatomy(landmarks: PoseLandmark[]): SideAnatomy {
 
   const ear = tracked("ear", landmarks[indices.ear], "mediapipe");
   const shoulder = tracked("shoulder", landmarks[indices.shoulder], "mediapipe");
+  const elbow = tracked("elbow", landmarks[indices.elbow], "mediapipe");
+  const wrist = tracked("wrist", landmarks[indices.wrist], "mediapipe");
   const hip = tracked("hip", landmarks[indices.hip], "mediapipe");
   const knee = tracked("knee", landmarks[indices.knee], "mediapipe");
   const ankle = tracked("ankle", landmarks[indices.ankle], "mediapipe");
@@ -74,6 +88,8 @@ export function inferSideAnatomy(landmarks: PoseLandmark[]): SideAnatomy {
     points: {
       ear,
       shoulder,
+      elbow,
+      wrist,
       hip,
       knee,
       ankle,
