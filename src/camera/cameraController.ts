@@ -22,7 +22,11 @@ export class CameraController {
 
     const mediaDevices = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
     if (!mediaDevices?.getUserMedia) {
-      throw new Error("카메라 API를 사용할 수 없어요.");
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        throw new Error("모바일 카메라는 HTTPS 또는 localhost 주소에서만 사용할 수 있어요.");
+      }
+
+      throw new Error("이 브라우저에서 카메라 API를 사용할 수 없어요.");
     }
 
     const videoConstraints: MediaTrackConstraints = {

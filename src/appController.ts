@@ -185,11 +185,35 @@ function defaultCameraOption(): HTMLOptionElement {
 }
 
 function messageFromError(error: unknown): string {
+  if (isDomError(error, "NotAllowedError") || includesErrorText(error, "permission denied")) {
+    return "카메라 권한이 거부됐어요. 브라우저와 OS 카메라 권한을 허용한 뒤 새로고침해 주세요.";
+  }
+
+  if (isDomError(error, "NotFoundError")) {
+    return "사용 가능한 카메라를 찾지 못했어요.";
+  }
+
+  if (isDomError(error, "NotReadableError")) {
+    return "카메라를 열 수 없어요. 다른 앱이 카메라를 사용 중인지 확인해 주세요.";
+  }
+
+  if (isDomError(error, "SecurityError")) {
+    return "카메라는 HTTPS 또는 localhost 주소에서만 사용할 수 있어요.";
+  }
+
   if (error instanceof Error && error.message) {
     return error.message;
   }
 
   return "카메라를 시작하지 못했어요.";
+}
+
+function isDomError(error: unknown, name: string): boolean {
+  return error instanceof DOMException && error.name === name;
+}
+
+function includesErrorText(error: unknown, text: string): boolean {
+  return error instanceof Error && error.message.toLowerCase().includes(text);
 }
 
 function messageForAnalysis(confidence: number): string {

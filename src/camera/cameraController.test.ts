@@ -8,6 +8,13 @@ function setMediaDevices(mediaDevices: MediaDevices | undefined): void {
   });
 }
 
+function setSecureContext(isSecureContext: boolean): void {
+  Object.defineProperty(window, "isSecureContext", {
+    configurable: true,
+    value: isSecureContext,
+  });
+}
+
 function createTrack(): MediaStreamTrack {
   return {
     stop: vi.fn(),
@@ -115,10 +122,28 @@ describe("CameraController", () => {
       srcObject: null,
     } as unknown as HTMLVideoElement;
     setMediaDevices({} as MediaDevices);
+    setSecureContext(true);
 
     const controller = new CameraController(video);
 
-    await expect(controller.start()).rejects.toThrow("카메라 API를 사용할 수 없어요.");
+    await expect(controller.start()).rejects.toThrow("이 브라우저에서 카메라 API를 사용할 수 없어요.");
+    expect(video.play).not.toHaveBeenCalled();
+    expect(video.srcObject).toBeNull();
+  });
+
+  it("안전하지 않은 주소에서 getUserMedia를 사용할 수 없으면 HTTPS 안내 Error를 던진다", async () => {
+    const video = {
+      play: vi.fn().mockResolvedValue(undefined),
+      srcObject: null,
+    } as unknown as HTMLVideoElement;
+    setMediaDevices({} as MediaDevices);
+    setSecureContext(false);
+
+    const controller = new CameraController(video);
+
+    await expect(controller.start()).rejects.toThrow(
+      "모바일 카메라는 HTTPS 또는 localhost 주소에서만 사용할 수 있어요.",
+    );
     expect(video.play).not.toHaveBeenCalled();
     expect(video.srcObject).toBeNull();
   });

@@ -78,7 +78,7 @@ describe("createAppController", () => {
   it("카메라 시작 실패 시 메시지를 표시하고 컨트롤을 복구한다", async () => {
     const shell = createAppShell();
     const camera = {
-      start: vi.fn().mockRejectedValue(new Error("권한이 거부됐어요.")),
+      start: vi.fn().mockRejectedValue(new Error("Permission denied")),
       stop: vi.fn(),
     };
     const controller = createAppController(shell, {
@@ -96,7 +96,9 @@ describe("createAppController", () => {
     await controller.init();
     await controller.start();
 
-    expect(shell.message.textContent).toBe("권한이 거부됐어요.");
+    expect(shell.message.textContent).toBe(
+      "카메라 권한이 거부됐어요. 브라우저와 OS 카메라 권한을 허용한 뒤 새로고침해 주세요.",
+    );
     expect(shell.startButton.disabled).toBe(false);
     expect(shell.stopButton.disabled).toBe(true);
     expect(camera.stop).toHaveBeenCalled();
