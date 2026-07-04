@@ -20,7 +20,11 @@ export class CameraController {
   async start(deviceId?: string): Promise<MediaStream> {
     this.stop();
 
-    const mediaDevices = navigator.mediaDevices;
+    const mediaDevices = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
+    if (!mediaDevices?.getUserMedia) {
+      throw new Error("카메라 API를 사용할 수 없어요.");
+    }
+
     const videoConstraints: MediaTrackConstraints = {
       width: { ideal: 1280 },
       height: { ideal: 720 },
@@ -36,9 +40,18 @@ export class CameraController {
       video: videoConstraints,
     });
 
-    this.video.srcObject = stream;
-    await this.video.play();
-    this.stream = stream;
+    try {
+      this.video.srcObject = stream;
+      await this.video.play();
+      this.stream = stream;
+    } catch (error) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+
+      this.video.srcObject = null;
+      throw error;
+    }
 
     return stream;
   }

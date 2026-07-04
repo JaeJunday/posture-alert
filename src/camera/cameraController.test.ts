@@ -89,6 +89,40 @@ describe("CameraController", () => {
     expect(video.play).toHaveBeenCalledOnce();
   });
 
+  it("video.play가 실패하면 새 스트림을 중지하고 video srcObject를 비운다", async () => {
+    const firstTrack = createTrack();
+    const secondTrack = createTrack();
+    const stream = { getTracks: () => [firstTrack, secondTrack] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockResolvedValue(stream);
+    const playError = new Error("play failed");
+    const video = {
+      play: vi.fn().mockRejectedValue(playError),
+      srcObject: null,
+    } as unknown as HTMLVideoElement;
+    setMediaDevices({ getUserMedia } as unknown as MediaDevices);
+
+    const controller = new CameraController(video);
+
+    await expect(controller.start()).rejects.toBe(playError);
+    expect(firstTrack.stop).toHaveBeenCalledOnce();
+    expect(secondTrack.stop).toHaveBeenCalledOnce();
+    expect(video.srcObject).toBeNull();
+  });
+
+  it("getUserMedia를 사용할 수 없으면 명시적인 Error를 던진다", async () => {
+    const video = {
+      play: vi.fn().mockResolvedValue(undefined),
+      srcObject: null,
+    } as unknown as HTMLVideoElement;
+    setMediaDevices({} as MediaDevices);
+
+    const controller = new CameraController(video);
+
+    await expect(controller.start()).rejects.toThrow("카메라 API를 사용할 수 없어요.");
+    expect(video.play).not.toHaveBeenCalled();
+    expect(video.srcObject).toBeNull();
+  });
+
   it("새 카메라를 시작하기 전에 이전 스트림을 중지한다", async () => {
     const firstTrack = createTrack();
     const secondTrack = createTrack();

@@ -6,22 +6,35 @@ const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/w
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
 
+type Delegate = "CPU" | "GPU";
+type CreateOptions = Parameters<typeof PoseLandmarker.createFromOptions>[1];
+
+function createOptions(delegate: Delegate): CreateOptions {
+  return {
+    baseOptions: {
+      modelAssetPath: MODEL_URL,
+      delegate,
+    },
+    runningMode: "VIDEO",
+    numPoses: 1,
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  };
+}
+
 export class MediaPipePoseDetector implements PoseDetector {
   private constructor(private readonly landmarker: PoseLandmarker) {}
 
   static async create(): Promise<MediaPipePoseDetector> {
     const vision = await FilesetResolver.forVisionTasks(WASM_URL);
-    const landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numPoses: 1,
-      minPoseDetectionConfidence: 0.5,
-      minPosePresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+    let landmarker: PoseLandmarker;
+
+    try {
+      landmarker = await PoseLandmarker.createFromOptions(vision, createOptions("GPU"));
+    } catch {
+      landmarker = await PoseLandmarker.createFromOptions(vision, createOptions("CPU"));
+    }
 
     return new MediaPipePoseDetector(landmarker);
   }
