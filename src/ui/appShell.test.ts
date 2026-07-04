@@ -7,6 +7,7 @@ describe("createAppShell", () => {
 
     expect(shell.root.querySelector("video")).toBe(shell.video);
     expect(shell.root.querySelector("canvas")).toBe(shell.overlay);
+    expect(shell.root.querySelector(".status-panel")).toBeTruthy();
     expect(shell.root.querySelector('[data-role="score"]')).toBeTruthy();
     expect(shell.root.querySelector('[data-role="toolbar"]')).toBeTruthy();
     expect(shell.startButton.textContent).toBe("시작");
