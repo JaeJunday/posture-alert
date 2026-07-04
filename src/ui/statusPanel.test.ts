@@ -86,4 +86,70 @@ describe("renderStatusPanel", () => {
     expect(elements.statusList.textContent).not.toContain("0점");
     expect(elements.statusList.querySelector(".status-card--unstable")).toBeTruthy();
   });
+
+  it("같은 컨테이너에 다시 렌더링하면 이전 카드가 남지 않는다", () => {
+    const elements = createElements();
+
+    renderStatusPanel(
+      elements,
+      createAnalysis({
+        statuses: [
+          {
+            part: "neck",
+            severity: "warning",
+            score: 64,
+            message: "첫 렌더 메시지예요.",
+            pointIds: ["ear", "shoulder"],
+          },
+        ],
+      }),
+    );
+    renderStatusPanel(
+      elements,
+      createAnalysis({
+        statuses: [
+          {
+            part: "spine",
+            severity: "ok",
+            score: 91,
+            message: "새 렌더 메시지예요.",
+            pointIds: ["shoulder", "hip"],
+          },
+        ],
+      }),
+    );
+
+    expect(elements.statusList.querySelectorAll(".status-card")).toHaveLength(1);
+    expect(elements.statusList.textContent).toContain("척추");
+    expect(elements.statusList.textContent).toContain("새 렌더 메시지예요.");
+    expect(elements.statusList.textContent).not.toContain("목");
+    expect(elements.statusList.textContent).not.toContain("첫 렌더 메시지예요.");
+  });
+
+  it("status message에 HTML 문자열이 들어와도 텍스트로만 표시한다", () => {
+    const elements = createElements();
+    const unsafeMessage = '<img src=x onerror="alert(1)">자세를 확인해 주세요.';
+
+    renderStatusPanel(
+      elements,
+      createAnalysis({
+        statuses: [
+          {
+            part: "lumbar",
+            severity: "danger",
+            score: 28,
+            message: unsafeMessage,
+            pointIds: ["hip", "knee"],
+          },
+        ],
+      }),
+    );
+
+    const message = elements.statusList.querySelector("p");
+
+    expect(message?.textContent).toBe(unsafeMessage);
+    expect(message?.childNodes).toHaveLength(1);
+    expect(message?.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(elements.statusList.querySelector("img")).toBeNull();
+  });
 });

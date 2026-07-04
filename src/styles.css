@@ -71,7 +71,7 @@ select {
   background: #ffffff;
 }
 
-.status-panel strong {
+.status-panel [data-role="score"] {
   font-size: 56px;
   line-height: 1;
 }
