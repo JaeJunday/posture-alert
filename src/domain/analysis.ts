@@ -1,8 +1,21 @@
 import type { SideAnatomy } from "./anatomy";
 import { angleFromVerticalDegrees, clamp, distance2d, scoreFromRange } from "./geometry";
-import type { BodyPart, PostureAnalysis, Severity, TrackedPoint } from "./types";
+import type { BodyPart, BodyPartStatus, PostureAnalysis, Severity, TrackedPoint } from "./types";
 
+const MIN_VISIBILITY = 0.55;
 const UNSTABLE_MESSAGE = "기준점 추적이 불안정해요. 카메라 위치를 조정해 주세요.";
+const CORE_POINT_IDS = ["ear", "shoulder", "hip"] as const satisfies readonly PointId[];
+
+type PointId = keyof SideAnatomy["points"];
+type MetricDefinition = {
+  part: BodyPart;
+  label: string;
+  warning: number;
+  danger: number;
+  weight: number;
+  pointIds: readonly PointId[];
+  inputPointIds: readonly PointId[];
+};
 
 const METRICS = [
   {
@@ -12,6 +25,7 @@ const METRICS = [
     danger: 0.24,
     weight: 0.28,
     pointIds: ["ear", "shoulder"],
+    inputPointIds: ["ear", "shoulder", "hip"],
   },
   {
     part: "cervical",
@@ -20,6 +34,7 @@ const METRICS = [
     danger: 34,
     weight: 0.22,
     pointIds: ["ear", "cervical", "shoulder"],
+    inputPointIds: ["ear", "cervical", "shoulder"],
   },
   {
     part: "spine",
@@ -28,6 +43,7 @@ const METRICS = [
     danger: 0.18,
     weight: 0.18,
     pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
+    inputPointIds: ["cervical", "upperSpine", "midSpine", "lumbar", "shoulder", "hip"],
   },
   {
     part: "lumbar",
@@ -36,6 +52,7 @@ const METRICS = [
     danger: 0.18,
     weight: 0.14,
     pointIds: ["lumbar", "hip"],
+    inputPointIds: ["lumbar", "hip", "shoulder"],
   },
   {
     part: "trunk",
@@ -44,31 +61,19 @@ const METRICS = [
     danger: 24,
     weight: 0.18,
     pointIds: ["shoulder", "hip"],
+    inputPointIds: ["shoulder", "hip"],
   },
-] as const satisfies readonly {
-  part: BodyPart;
-  label: string;
-  warning: number;
-  danger: number;
-  weight: number;
-  pointIds: readonly string[];
-}[];
+] as const satisfies readonly MetricDefinition[];
 
 export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
   const points = orderedPoints(anatomy);
 
-  if (!anatomy.isStable) {
+  if (isFullyUnstable(anatomy)) {
     return {
       mode: "side",
       overallScore: 0,
       confidence: anatomy.confidence,
-      statuses: METRICS.map((metric) => ({
-        part: metric.part,
-        severity: "unstable",
-        score: 0,
-        message: UNSTABLE_MESSAGE,
-        pointIds: [],
-      })),
+      statuses: METRICS.map((metric) => unstableStatus(metric, [])),
       points,
     };
   }
@@ -91,27 +96,33 @@ export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
     trunk: angleFromVerticalDegrees(shoulder, hip),
   };
 
-  const statuses = METRICS.map((metric) => {
-    const score = scoreFromRange(valuesByPart[metric.part], metric.warning, metric.danger);
+  let weightedTotal = 0;
+  const statuses: BodyPartStatus[] = METRICS.map((metric) => {
+    if (hasUnstableInput(anatomy, metric.inputPointIds)) {
+      return unstableStatus(metric, [...metric.pointIds]);
+    }
 
+    const value = valuesByPart[metric.part];
+    if (!Number.isFinite(value)) {
+      return unstableStatus(metric, [...metric.pointIds]);
+    }
+
+    const score = scoreFromRange(value, metric.warning, metric.danger);
+    const severity = severityFromScore(score);
+    weightedTotal += score * metric.weight;
     return {
       part: metric.part,
-      severity: severityFromScore(score),
+      severity,
       score,
-      message: messageFor(metric.label, severityFromScore(score)),
+      message: messageFor(metric.label, severity),
       pointIds: [...metric.pointIds],
     };
   });
-  const overallScore = Math.round(
-    statuses.reduce((total, status) => {
-      const metric = METRICS.find((candidate) => candidate.part === status.part);
-      return total + status.score * (metric?.weight ?? 0);
-    }, 0),
-  );
+  const roundedOverallScore = Number.isFinite(weightedTotal) ? Math.round(weightedTotal) : 0;
 
   return {
     mode: "side",
-    overallScore: clamp(overallScore, 0, 100),
+    overallScore: clamp(roundedOverallScore, 0, 100),
     confidence: anatomy.confidence,
     statuses,
     points,
@@ -121,6 +132,34 @@ export function analyzePosture(anatomy: SideAnatomy): PostureAnalysis {
 function orderedPoints(anatomy: SideAnatomy): TrackedPoint[] {
   const { ear, shoulder, hip, knee, ankle, cervical, upperSpine, midSpine, lumbar } = anatomy.points;
   return [ear, shoulder, hip, knee, ankle, cervical, upperSpine, midSpine, lumbar];
+}
+
+function isFullyUnstable(anatomy: SideAnatomy): boolean {
+  return CORE_POINT_IDS.every((pointId) => !isUsablePoint(anatomy.points[pointId]));
+}
+
+function hasUnstableInput(anatomy: SideAnatomy, pointIds: readonly PointId[]): boolean {
+  return pointIds.some((pointId) => !isUsablePoint(anatomy.points[pointId]));
+}
+
+function isUsablePoint(point: TrackedPoint | undefined): point is TrackedPoint {
+  return (
+    point !== undefined &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y) &&
+    Number.isFinite(point.visibility) &&
+    point.visibility >= MIN_VISIBILITY
+  );
+}
+
+function unstableStatus(metric: MetricDefinition, pointIds: PointId[]): BodyPartStatus {
+  return {
+    part: metric.part,
+    severity: "unstable",
+    score: 0,
+    message: UNSTABLE_MESSAGE,
+    pointIds,
+  };
 }
 
 function severityFromScore(score: number): Severity {

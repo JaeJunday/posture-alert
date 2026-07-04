@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzePosture } from "./analysis";
 import type { SideAnatomy } from "./anatomy";
-import type { TrackedPoint } from "./types";
+import type { BodyPart, BodyPartStatus, TrackedPoint } from "./types";
 
 function point(id: string, x: number, y: number, visibility = 0.95): TrackedPoint {
   const source = ["cervical", "upperSpine", "midSpine", "lumbar"].includes(id) ? "inferred" : "mediapipe";
@@ -37,15 +37,26 @@ function anatomy(overrides: Partial<SideAnatomy["points"]> = {}, isStable = true
   };
 }
 
+function statusByPart(statuses: BodyPartStatus[], part: BodyPart): BodyPartStatus {
+  const status = statuses.find((candidate) => candidate.part === part);
+  expect(status).toBeDefined();
+  return status as BodyPartStatus;
+}
+
 describe("analysis", () => {
   it("안정적인 직립 자세는 높은 점수와 정상 상태를 반환한다", () => {
     const result = analyzePosture(anatomy());
 
     expect(result.mode).toBe("side");
     expect(result.confidence).toBe(0.87);
-    expect(result.overallScore).toBeGreaterThanOrEqual(85);
+    expect(result.overallScore).toBe(100);
     expect(result.statuses).toHaveLength(5);
     expect(result.statuses.every((status) => status.severity === "ok")).toBe(true);
+    expect(statusByPart(result.statuses, "neck").pointIds).toEqual(["ear", "shoulder"]);
+    expect(statusByPart(result.statuses, "cervical").pointIds).toEqual(["ear", "cervical", "shoulder"]);
+    expect(statusByPart(result.statuses, "spine").pointIds).toEqual(["cervical", "upperSpine", "midSpine", "lumbar"]);
+    expect(statusByPart(result.statuses, "lumbar").pointIds).toEqual(["lumbar", "hip"]);
+    expect(statusByPart(result.statuses, "trunk").pointIds).toEqual(["shoulder", "hip"]);
     expect(result.points.map((trackedPoint) => trackedPoint.id)).toEqual([
       "ear",
       "shoulder",
@@ -93,8 +104,64 @@ describe("analysis", () => {
     expect(spine?.severity).not.toBe("ok");
   });
 
-  it("불안정한 기준점은 점수 0과 불안정 상태를 반환한다", () => {
-    const result = analyzePosture(anatomy({}, false));
+  it("한 기준점만 불안정하면 해당 기준점을 쓰는 부위만 불안정 상태를 반환한다", () => {
+    const result = analyzePosture(
+      anatomy(
+        {
+          ear: point("ear", 0.5, 0.1, 0.4),
+        },
+        false,
+      ),
+    );
+
+    expect(result.overallScore).toBe(50);
+    expect(result.statuses.every((status) => status.severity === "unstable")).toBe(false);
+    expect(statusByPart(result.statuses, "neck")).toMatchObject({
+      severity: "unstable",
+      score: 0,
+      pointIds: ["ear", "shoulder"],
+    });
+    expect(statusByPart(result.statuses, "cervical")).toMatchObject({
+      severity: "unstable",
+      score: 0,
+      pointIds: ["ear", "cervical", "shoulder"],
+    });
+    expect(statusByPart(result.statuses, "spine").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "lumbar").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "trunk").severity).toBe("ok");
+  });
+
+  it("NaN 좌표를 참조하는 부위만 불안정 상태가 되고 전체 점수는 유한한 숫자를 반환한다", () => {
+    const result = analyzePosture(
+      anatomy({
+        midSpine: point("midSpine", Number.NaN, 0.525),
+      }),
+    );
+
+    expect(Number.isFinite(result.overallScore)).toBe(true);
+    expect(result.overallScore).toBe(82);
+    expect(statusByPart(result.statuses, "spine")).toMatchObject({
+      severity: "unstable",
+      score: 0,
+      pointIds: ["cervical", "upperSpine", "midSpine", "lumbar"],
+    });
+    expect(statusByPart(result.statuses, "neck").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "cervical").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "lumbar").severity).toBe("ok");
+    expect(statusByPart(result.statuses, "trunk").severity).toBe("ok");
+  });
+
+  it("모든 핵심 기준점이 불안정하면 점수 0과 전체 불안정 상태를 반환한다", () => {
+    const result = analyzePosture(
+      anatomy(
+        {
+          ear: point("ear", 0.5, 0.1, 0.4),
+          shoulder: point("shoulder", 0.5, 0.3, 0.4),
+          hip: point("hip", 0.5, 0.75, 0.4),
+        },
+        false,
+      ),
+    );
 
     expect(result.overallScore).toBe(0);
     expect(result.confidence).toBe(0.87);
