@@ -9,13 +9,11 @@ const MODEL_URL =
 type Delegate = "CPU" | "GPU";
 type CreateOptions = Parameters<typeof PoseLandmarker.createFromOptions>[1];
 
-const CPU_FALLBACK_ERROR_SIGNALS = [
-  "delegate",
-  "gpu",
-  "webgl",
-  "wasm",
-  "not supported",
-  "unsupported",
+const GPU_FALLBACK_ERROR_PATTERNS = [
+  /\bwebgl\b/,
+  /\bwebgpu\b/,
+  /\bgpu\b.*\b(delegate|not supported|unsupported|unavailable|failed|failure|error)\b/,
+  /\b(delegate|not supported|unsupported|unavailable|failed|failure|error)\b.*\bgpu\b/,
 ] as const;
 
 function createOptions(delegate: Delegate): CreateOptions {
@@ -43,12 +41,8 @@ function describeError(error: unknown): string {
 
 function isCpuFallbackEligibleError(error: unknown): boolean {
   const text = describeError(error).toLowerCase();
-  const compactText = text.replace(/[\s_-]+/g, "");
 
-  return CPU_FALLBACK_ERROR_SIGNALS.some((signal) => {
-    const compactSignal = signal.replace(/\s+/g, "");
-    return text.includes(signal) || compactText.includes(compactSignal);
-  });
+  return GPU_FALLBACK_ERROR_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function preserveGpuFailureCause(cpuError: unknown, gpuError: unknown): Error {

@@ -84,6 +84,32 @@ describe("MediaPipePoseDetector", () => {
     expect(mediaPipeMocks.createFromOptions).toHaveBeenCalledWith(vision, expectedOptions("GPU"));
   });
 
+  it("GPU 문맥 없는 not supported 오류는 CPU delegate로 재시도하지 않는다", async () => {
+    const vision = {};
+    const landmarker = createLandmarker();
+    const gpuError = new Error("Model schema is not supported");
+    mediaPipeMocks.forVisionTasks.mockResolvedValue(vision);
+    mediaPipeMocks.createFromOptions.mockRejectedValueOnce(gpuError).mockResolvedValueOnce(landmarker);
+
+    await expect(MediaPipePoseDetector.create()).rejects.toBe(gpuError);
+
+    expect(mediaPipeMocks.createFromOptions).toHaveBeenCalledOnce();
+    expect(mediaPipeMocks.createFromOptions).toHaveBeenCalledWith(vision, expectedOptions("GPU"));
+  });
+
+  it("GPU 문맥 없는 delegate 옵션 오류는 CPU delegate로 재시도하지 않는다", async () => {
+    const vision = {};
+    const landmarker = createLandmarker();
+    const gpuError = new Error("Custom delegate option is invalid");
+    mediaPipeMocks.forVisionTasks.mockResolvedValue(vision);
+    mediaPipeMocks.createFromOptions.mockRejectedValueOnce(gpuError).mockResolvedValueOnce(landmarker);
+
+    await expect(MediaPipePoseDetector.create()).rejects.toBe(gpuError);
+
+    expect(mediaPipeMocks.createFromOptions).toHaveBeenCalledOnce();
+    expect(mediaPipeMocks.createFromOptions).toHaveBeenCalledWith(vision, expectedOptions("GPU"));
+  });
+
   it("GPU fallback 후 CPU 생성도 실패하면 최종 오류에 GPU 실패 원인을 보존한다", async () => {
     const vision = {};
     const gpuError = new Error("WebGL delegate is unsupported");
